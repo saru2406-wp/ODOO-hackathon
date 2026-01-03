@@ -323,11 +323,57 @@ const TripForm = () => {
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!formData.destination || !formData.startDate || !formData.endDate) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
     setIsSubmitting(true);
-    setTimeout(() => {
+    
+    try {
+      const tripData = {
+        destination: formData.destination,
+        tripType: formData.tripType,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        travelers: formData.travelers,
+        budget: formData.budget || 0,
+        description: formData.description,
+        interests: selectedInterests,
+        accommodation: formData.accommodation,
+        transportation: formData.transportation
+      };
+
+      const response = await fetch('http://localhost:5000/api/trips', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(tripData)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create trip');
+      }
+
+      const data = await response.json();
+      
+      // Show success message
+      alert('Trip created successfully! 🎉');
+      
+      // Trigger custom event to refresh dashboard
+      window.dispatchEvent(new CustomEvent('tripCreated', { detail: data.trip }));
+      
+      // Navigate to dashboard
       navigate('/dashboard');
-    }, 2000);
+    } catch (error) {
+      console.error('Error creating trip:', error);
+      alert(error.message || 'Failed to create trip. Please try again.');
+      setIsSubmitting(false);
+    }
   };
 
   const renderStep1 = () => (

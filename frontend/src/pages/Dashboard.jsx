@@ -1,35 +1,139 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import ExpenseSplitter from '../components/ExpenseSplitter';
+import { tripsAPI, budgetAPI, recommendationsAPI, itineraryAPI } from '../services/api';
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalBudget: 0,
+    totalSpent: 0,
+    totalRemaining: 0,
+    totalActivities: 0,
+    totalDays: 0
+  });
+  const [recommendations, setRecommendations] = useState([]);
+  const [quickItinerary, setQuickItinerary] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
     setUser(userData);
-    fetchTrips();
+    fetchDashboardData();
+    
+    // Listen for trip creation events
+    const handleTripCreated = () => {
+      fetchDashboardData();
+    };
+    
+    window.addEventListener('tripCreated', handleTripCreated);
+    
+    // Refresh data every 30 seconds
+    const interval = setInterval(fetchDashboardData, 30000);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('tripCreated', handleTripCreated);
+    };
   }, []);
 
-  const fetchTrips = async () => {
+  const fetchDashboardData = async () => {
     try {
-      // Mock data for demo
-      setTrips([
-        { id: 1, destination: 'Bali, Indonesia', startDate: '2024-02-15', endDate: '2024-02-25' },
-        { id: 2, destination: 'Tokyo, Japan', startDate: '2024-03-10', endDate: '2024-03-20' },
-        { id: 3, destination: 'Paris, France', startDate: '2024-01-05', endDate: '2024-01-15' },
-      ]);
+      setLoading(true);
+      
+      // Fetch trips
+      const tripsData = await tripsAPI.getAll();
+      const tripsList = tripsData.trips || [];
+      setTrips(tripsList);
+
+      // Calculate statistics
+      calculateStats(tripsList);
+
+      // Fetch recommendations
+      try {
+        const recsData = await recommendationsAPI.getAll();
+        setRecommendations(recsData.recommendations?.slice(0, 3) || []);
+      } catch (err) {
+        console.error('Error fetching recommendations:', err);
+      }
+
+      // Fetch quick itinerary from most recent trip
+      if (tripsList.length > 0) {
+        const mostRecentTrip = tripsList[0];
+        try {
+          const itineraryData = await itineraryAPI.getByTrip(mostRecentTrip.id);
+          if (itineraryData.days && itineraryData.days.length > 0) {
+            const firstDay = itineraryData.days[0];
+            setQuickItinerary(firstDay.activities?.slice(0, 3) || []);
+          }
+        } catch (err) {
+          console.error('Error fetching itinerary:', err);
+        }
+      }
     } catch (error) {
-      console.error('Error fetching trips:', error);
+      console.error('Error fetching dashboard data:', error);
+      if (error.message.includes('token') || error.message.includes('Unauthorized')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const upcomingTrips = trips.filter(trip => new Date(trip.startDate) > new Date());
-  const pastTrips = trips.filter(trip => new Date(trip.endDate) < new Date());
+  const calculateStats = async (tripsList) => {
+    let totalBudget = 0;
+    let totalSpent = 0;
+    let totalActivities = 0;
+    let totalDays = 0;
+
+    // Calculate from all trips
+    for (const trip of tripsList) {
+      totalBudget += parseFloat(trip.budget || 0);
+      
+      // Fetch budget data for each trip
+      try {
+        const budgetData = await budgetAPI.getByTrip(trip.id);
+        totalSpent += parseFloat(budgetData.totalSpent || 0);
+      } catch (err) {
+        // Trip might not have budget yet
+      }
+
+      // Count itinerary days
+      try {
+        const itineraryData = await itineraryAPI.getByTrip(trip.id);
+        if (itineraryData.days) {
+          totalDays += itineraryData.days.length;
+          itineraryData.days.forEach(day => {
+            totalActivities += day.activities?.length || 0;
+          });
+        }
+      } catch (err) {
+        // Trip might not have itinerary yet
+      }
+    }
+
+    setStats({
+      totalBudget,
+      totalSpent,
+      totalRemaining: totalBudget - totalSpent,
+      totalActivities,
+      totalDays
+    });
+  };
+
+  const upcomingTrips = trips.filter(trip => {
+    const startDate = new Date(trip.start_date || trip.startDate);
+    return startDate > new Date();
+  });
+  
+  const pastTrips = trips.filter(trip => {
+    const endDate = new Date(trip.end_date || trip.endDate);
+    return endDate < new Date();
+  });
 
   return (
     <div className="dashboard">
@@ -81,6 +185,18 @@ const Dashboard = () => {
                   <span className="stat-label">Completed</span>
                 </div>
               </div>
+              <div className="stat-box">
+                <div className="stat-content">
+                  <span className="stat-number">{stats.totalActivities}</span>
+                  <span className="stat-label">Activities</span>
+                </div>
+              </div>
+              <div className="stat-box">
+                <div className="stat-content">
+                  <span className="stat-number">{stats.totalDays}</span>
+                  <span className="stat-label">Itinerary Days</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -122,8 +238,8 @@ const Dashboard = () => {
                       <div className="trip-info">
                         <h4>{trip.destination}</h4>
                         <p className="trip-dates">
-                          📅 {new Date(trip.startDate).toLocaleDateString()} - 
-                          {new Date(trip.endDate).toLocaleDateString()}
+                          📅 {new Date(trip.start_date || trip.startDate).toLocaleDateString()} - 
+                          {new Date(trip.end_date || trip.endDate).toLocaleDateString()}
                         </p>
                       </div>
                       <Link to={`/trips/${trip.id}`} className="trip-link">👉</Link>
@@ -150,21 +266,21 @@ const Dashboard = () => {
                   <span className="budget-icon">💳</span>
                   <div className="budget-details">
                     <span className="budget-label">Total Budget</span>
-                    <span className="budget-amount">$2,500</span>
+                    <span className="budget-amount">${stats.totalBudget.toLocaleString()}</span>
                   </div>
                 </div>
                 <div className="budget-item">
                   <span className="budget-icon">💸</span>
                   <div className="budget-details">
                     <span className="budget-label">Spent</span>
-                    <span className="budget-amount spent">$1,200</span>
+                    <span className="budget-amount spent">${stats.totalSpent.toLocaleString()}</span>
                   </div>
                 </div>
                 <div className="budget-item">
                   <span className="budget-icon">💎</span>
                   <div className="budget-details">
                     <span className="budget-label">Remaining</span>
-                    <span className="budget-amount remaining">$1,300</span>
+                    <span className="budget-amount remaining">${stats.totalRemaining.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -182,27 +298,34 @@ const Dashboard = () => {
               <Link to="/recommendations" className="view-all">More →</Link>
             </div>
             <div className="recommendations-list">
-              <div className="recommendation-item">
-                <span className="rec-icon">🏨</span>
-                <div className="rec-details">
-                  <h4>Hotel Deals</h4>
-                  <p>🏝️ Up to 40% off in Bali</p>
-                </div>
-              </div>
-              <div className="recommendation-item">
-                <span className="rec-icon">✈️</span>
-                <div className="rec-details">
-                  <h4>Flight Discounts</h4>
-                  <p>🇪🇺 Cheap flights to Europe</p>
-                </div>
-              </div>
-              <div className="recommendation-item">
-                <span className="rec-icon">🎭</span>
-                <div className="rec-details">
-                  <h4>Activities</h4>
-                  <p>🇹🇭 Top-rated tours in Thailand</p>
-                </div>
-              </div>
+              {recommendations.length > 0 ? (
+                recommendations.map((rec, index) => (
+                  <div key={rec.id || index} className="recommendation-item">
+                    <span className="rec-icon">🌟</span>
+                    <div className="rec-details">
+                      <h4>{rec.title || 'Trip Recommendation'}</h4>
+                      <p>📍 {rec.location || 'Amazing destination'}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <>
+                  <div className="recommendation-item">
+                    <span className="rec-icon">🏨</span>
+                    <div className="rec-details">
+                      <h4>Hotel Deals</h4>
+                      <p>🏝️ Up to 40% off in Bali</p>
+                    </div>
+                  </div>
+                  <div className="recommendation-item">
+                    <span className="rec-icon">✈️</span>
+                    <div className="rec-details">
+                      <h4>Flight Discounts</h4>
+                      <p>🇪🇺 Cheap flights to Europe</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -213,21 +336,39 @@ const Dashboard = () => {
             </div>
             <div className="itinerary-preview">
               <div className="timeline">
-                <div className="timeline-item">
-                  <span className="time">9:00 AM</span>
-                  <span className="activity-icon">☕</span>
-                  <span className="activity">Breakfast at Cafe</span>
-                </div>
-                <div className="timeline-item">
-                  <span className="time">11:00 AM</span>
-                  <span className="activity-icon">🏛️</span>
-                  <span className="activity">Museum Visit</span>
-                </div>
-                <div className="timeline-item">
-                  <span className="time">2:00 PM</span>
-                  <span className="activity-icon">🛍️</span>
-                  <span className="activity">Lunch & Shopping</span>
-                </div>
+                {quickItinerary.length > 0 ? (
+                  quickItinerary.map((activity, index) => (
+                    <div key={activity.id || index} className="timeline-item">
+                      <span className="time">{activity.time || 'TBD'}</span>
+                      <span className="activity-icon">
+                        {activity.type === 'food' ? '🍽️' :
+                         activity.type === 'sightseeing' ? '🏛️' :
+                         activity.type === 'shopping' ? '🛍️' :
+                         activity.type === 'transport' ? '🚗' :
+                         activity.type === 'hotel' ? '🏨' : '📍'}
+                      </span>
+                      <span className="activity">{activity.title || 'Activity'}</span>
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    <div className="timeline-item">
+                      <span className="time">9:00 AM</span>
+                      <span className="activity-icon">☕</span>
+                      <span className="activity">Breakfast at Cafe</span>
+                    </div>
+                    <div className="timeline-item">
+                      <span className="time">11:00 AM</span>
+                      <span className="activity-icon">🏛️</span>
+                      <span className="activity">Museum Visit</span>
+                    </div>
+                    <div className="timeline-item">
+                      <span className="time">2:00 PM</span>
+                      <span className="activity-icon">🛍️</span>
+                      <span className="activity">Lunch & Shopping</span>
+                    </div>
+                  </>
+                )}
               </div>
               <Link to="/itinerary" className="btn btn-outline">📝 Build Full Itinerary</Link>
             </div>
@@ -256,33 +397,48 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Recent Activity */}
+          {/* Recent Activity */}
         <div className="activity-section card">
           <div className="card-header">
             <h3>📝 Recent Activity</h3>
           </div>
           <div className="activity-list">
-            <div className="activity-item">
-              <span className="activity-icon">✅</span>
-              <div className="activity-details">
-                <p>You booked a flight to Bali</p>
-                <span className="activity-time">2 hours ago</span>
+            {trips.length > 0 && (
+              <div className="activity-item">
+                <span className="activity-icon">✈️</span>
+                <div className="activity-details">
+                  <p>You have {trips.length} trip{trips.length !== 1 ? 's' : ''} planned</p>
+                  <span className="activity-time">Active</span>
+                </div>
               </div>
-            </div>
-            <div className="activity-item">
-              <span className="activity-icon">🏨</span>
-              <div className="activity-details">
-                <p>Hotel reservation confirmed in Tokyo</p>
-                <span className="activity-time">1 day ago</span>
+            )}
+            {upcomingTrips.length > 0 && (
+              <div className="activity-item">
+                <span className="activity-icon">📅</span>
+                <div className="activity-details">
+                  <p>{upcomingTrips.length} upcoming trip{upcomingTrips.length !== 1 ? 's' : ''} scheduled</p>
+                  <span className="activity-time">Upcoming</span>
+                </div>
               </div>
-            </div>
-            <div className="activity-item">
-              <span className="activity-icon">📅</span>
-              <div className="activity-details">
-                <p>Added new activity to itinerary</p>
-                <span className="activity-time">3 days ago</span>
+            )}
+            {pastTrips.length > 0 && (
+              <div className="activity-item">
+                <span className="activity-icon">✅</span>
+                <div className="activity-details">
+                  <p>{pastTrips.length} completed trip{pastTrips.length !== 1 ? 's' : ''}</p>
+                  <span className="activity-time">Completed</span>
+                </div>
               </div>
-            </div>
+            )}
+            {trips.length === 0 && (
+              <div className="activity-item">
+                <span className="activity-icon">🎒</span>
+                <div className="activity-details">
+                  <p>No trips yet. Start planning your first adventure!</p>
+                  <Link to="/trips/new" className="plan-link">Plan a trip →</Link>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -906,6 +1062,19 @@ const Dashboard = () => {
         .activity-time {
           color: #666;
           font-size: 0.85rem;
+        }
+
+        .plan-link {
+          color: #667eea;
+          text-decoration: none;
+          font-weight: 500;
+          font-size: 0.9rem;
+          margin-top: 4px;
+          display: inline-block;
+        }
+
+        .plan-link:hover {
+          text-decoration: underline;
         }
 
         /* RESPONSIVE DESIGN - FULL WIDTH ADJUSTMENTS */

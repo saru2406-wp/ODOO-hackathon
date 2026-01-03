@@ -94,6 +94,7 @@ const Publicationary = () => {
                 value={newPublication.title}
                 onChange={(e) => setNewPublication({...newPublication, title: e.target.value})}
                 className="form-input"
+
                 required
               />
             </div>
@@ -599,9 +600,8 @@ const Publicationary = () => {
             margin-bottom: 30px;
           }
           
-          .publicationary-header h1 {
-            font-size: 1.6rem;
-          }
+          
+          
           
           .create-publication h3 {
             font-size: 1.2rem;

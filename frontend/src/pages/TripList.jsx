@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { tripsAPI } from "../services/api";
 
 const TripList = () => {
   const [trips, setTrips] = useState([]);
@@ -11,92 +12,55 @@ const TripList = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      const mockTrips = [
-        {
-          id: 1,
-          destination: "Tokyo, Japan",
-          dates: "Nov 25 - Dec 2, 2024",
-          status: "upcoming",
-          budget: 3500,
-          travelers: 2,
-          type: "Adventure",
-          image: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400",
-          description: "Exploring temples, food tours, and city adventures",
-          color: "#FF6B6B",
-          activities: ["Shibuya Crossing", "Mt. Fuji", "Tsukiji Market"]
-        },
-        {
-          id: 2,
-          destination: "Paris, France",
-          dates: "Oct 15-22, 2024",
-          status: "completed",
-          budget: 2800,
-          travelers: 1,
-          type: "Romantic",
-          image: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400",
-          description: "Romantic getaway with wine tasting",
-          color: "#4ECDC4",
-          activities: ["Eiffel Tower", "Louvre Museum", "Seine River Cruise"]
-        },
-        {
-          id: 3,
-          destination: "Bali, Indonesia",
-          dates: "Aug 5-15, 2024",
-          status: "completed",
-          budget: 2200,
-          travelers: 4,
-          type: "Beach",
-          image: "https://images.unsplash.com/photo-1537953773345-d172ccf13cf1?w=400",
-          description: "Surfing, yoga retreat, and beach relaxation",
-          color: "#45B7D1",
-          activities: ["Ubud Monkey Forest", "Tanah Lot Temple", "Uluwatu Beach"]
-        },
-        {
-          id: 4,
-          destination: "New York, USA",
-          dates: "Dec 20-28, 2024",
-          status: "upcoming",
-          budget: 4000,
-          travelers: 3,
-          type: "City",
-          image: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=400",
-          description: "Christmas shopping and Broadway shows",
-          color: "#96E6A1",
-          activities: ["Central Park", "Times Square", "Statue of Liberty"]
-        },
-        {
-          id: 5,
-          destination: "Sydney, Australia",
-          dates: "Jan 10-20, 2025",
-          status: "planned",
-          budget: 4500,
-          travelers: 2,
-          type: "Adventure",
-          image: "https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=400",
-          description: "Beach hopping and coastal hikes",
-          color: "#F0C987",
-          activities: ["Sydney Opera House", "Bondi Beach", "Blue Mountains"]
-        },
-        {
-          id: 6,
-          destination: "Dubai, UAE",
-          dates: "Feb 14-21, 2025",
-          status: "planned",
-          budget: 3800,
-          travelers: 2,
-          type: "Luxury",
-          image: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=400",
-          description: "Desert safari and luxury shopping",
-          color: "#8B5CF6",
-          activities: ["Burj Khalifa", "Desert Safari", "Dubai Mall"]
-        }
-      ];
-      setTrips(mockTrips);
-      setLoading(false);
-    }, 1000);
+    fetchTrips();
+    
+    // Listen for trip creation events
+    const handleTripCreated = () => {
+      fetchTrips();
+    };
+    
+    window.addEventListener('tripCreated', handleTripCreated);
+    return () => window.removeEventListener('tripCreated', handleTripCreated);
   }, []);
+
+  const fetchTrips = async () => {
+    try {
+      setLoading(true);
+      const data = await tripsAPI.getAll();
+      const formattedTrips = (data.trips || []).map(trip => {
+        const startDate = new Date(trip.start_date || trip.startDate);
+        const endDate = new Date(trip.end_date || trip.endDate);
+        const now = new Date();
+        
+        let status = "planned";
+        if (startDate > now) {
+          status = "upcoming";
+        } else if (endDate < now) {
+          status = "completed";
+        }
+        
+        return {
+          id: trip.id,
+          destination: trip.destination,
+          dates: `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+          status: status,
+          budget: parseFloat(trip.budget || 0),
+          travelers: trip.travelers || 1,
+          type: trip.trip_type || "Leisure",
+          image: trip.image_url || "https://images.unsplash.com/photo-1488646953014-85cb44e25828?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+          description: trip.description || `A wonderful trip to ${trip.destination}`,
+          color: "#667eea",
+          startDate: trip.start_date || trip.startDate,
+          endDate: trip.end_date || trip.endDate
+        };
+      });
+      setTrips(formattedTrips);
+    } catch (error) {
+      console.error('Error fetching trips:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredTrips = trips.filter(trip => {
     if (filter === "all") return true;
@@ -108,7 +72,11 @@ const TripList = () => {
     trip.type.toLowerCase().includes(search.toLowerCase()) ||
     trip.description.toLowerCase().includes(search.toLowerCase())
   ).sort((a, b) => {
-    if (sortBy === "date") return new Date(b.dates) - new Date(a.dates);
+    if (sortBy === "date") {
+      const dateA = new Date(a.startDate || a.dates);
+      const dateB = new Date(b.startDate || b.dates);
+      return dateB - dateA;
+    }
     if (sortBy === "budget") return b.budget - a.budget;
     return a.destination.localeCompare(b.destination);
   });
