@@ -1,0 +1,119 @@
+/* src/pages/CitySearch.css */
+.city-search-container {
+  padding: 2rem;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5e6e8ff 0%, #d5c6e0ff 100%);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.city-search-header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+  animation: fadeInDown 0.8s ease-out;
+}
+
+.title {
+  font-size: 2.5rem;
+  color: #192a51ff;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.subtitle {
+  font-size: 1.1rem;
+  color: #967aa1ff;
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+.search-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  animation: fadeInUp 0.8s ease-out 0.2s both;
+}
+
+.search-bar-container {
+  flex: 1;
+  min-width: 300px;
+  position: relative;
+  box-shadow: 0 5px 15px rgba(149, 122, 161, 0.2);
+  border-radius: 50px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.search-bar-container:focus-within {
+  box-shadow: 0 8px 25px rgba(116, 0, 184, 0.25);
+  transform: translateY(-2px);
+}
+
+.search-icon {
+  position: absolute;
+  left: 1.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #7400b8ff;
+  font-size: 1.2rem;
+  z-index: 2;
+}
+
+.search-input {
+  width: 100%;
+  padding: 1.2rem 1.2rem 1.2rem 3.5rem;
+  border: none;
+  background-color: white;
+  font-size: 1rem;
+  color: #192a51ff;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.search-input::placeholder {
+  color: #aaa1c8ff;
+}
+
+.clear-search {
+  position: absolute;
+  right: 1.2rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #967aa1ff;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: color 0.2s;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.clear-search:hover {
+  color: #7400b8ff;
+  background-color: #f5e6e8ff;
+}
+
+.filter-container {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background-color: white;
+  padding: 0.5rem 1.2rem;
+  border-radius: 50px;
+  box-shadow: 0 5px 15px rgba(149, 122, 161, 0.2);
+}
+
+.filter-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+ 
+}
